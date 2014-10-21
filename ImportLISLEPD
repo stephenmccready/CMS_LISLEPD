@@ -1,0 +1,60 @@
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER OFF
+GO
+
+Create procedure [dbo].[ImportLISLEPD] @path As varChar(128), @filename As varChar(128), @emailRecipient As varchar(128)
+As
+
+Begin
+/*
+Drop Table [dbo].[tbl_LISLEPD_In]
+Create Table [dbo].[tbl_LISLEPD_In] (col001 varchar(max))
+*/
+
+Truncate Table [dbo].[tbl_LISLEPD_In]
+
+Declare @BulkCmd As nvarChar(4000)
+Set		@BulkCmd = "BULK INSERT tbl_LISLEPD_In FROM '"+@path+@filename+"' WITH (FIELDTERMINATOR = '\n')"
+
+Exec	(@BulkCmd)
+
+Declare @today As DateTime
+Set @today=getDate()
+
+Insert	Into [dbo].[tbl_LISLEPD_Detail]
+Select	Cast(SUBSTRING(LI.Col001,1,3) As VarChar(3)) As [RecordType],
+		Cast(SUBSTRING(LI.Col001,4,5) As VarChar(5)) As [MCOContractNumber],
+		Cast(SUBSTRING(LI.Col001,9,3) As VarChar(3)) As [PBPNumber],
+		Cast(SUBSTRING(LI.Col001,12,3) As VarChar(3)) As [PlanSegmentNumber],
+		Cast(SUBSTRING(LI.Col001,15,12) As VarChar(12)) As [HICNumber],
+		Cast(SUBSTRING(LI.Col001,27,7) As VarChar(7)) As [Surname],
+		Cast(SUBSTRING(LI.Col001,34,1) As VarChar(1)) As [First Initial],
+		Cast(SUBSTRING(LI.Col001,35,1) As VarChar(8)) As [Sex],
+		Cast(SUBSTRING(LI.Col001,36,8) As VarChar(8)) As [DOB],
+		Cast(SUBSTRING(LI.Col001,44,1) As VarChar(1)) As [Filler01],
+		Cast(SUBSTRING(LI.Col001,45,6) As VarChar(6)) As [Premium/AdjustmentPeriodStartDate],
+		Cast(SUBSTRING(LI.Col001,51,6) As VarChar(6)) As [Premium/AdjustmentPeriodEndDate],
+		Cast(SUBSTRING(LI.Col001,57,2) As VarChar(2)) As [NumberofMonthsinPremium/AdjustmentPeriod],
+		Cast(SUBSTRING(LI.Col001,59,8) As VarChar(8)) As [NetMonthlyPartDBasicPremium],
+		Cast(SUBSTRING(LI.Col001,67,3) As VarChar(3)) As [LIPSPercentage],
+		Cast(SUBSTRING(LI.Col001,70,1) As VarChar(1)) As [PPO],
+		Cast(SUBSTRING(LI.Col001,71,8) As VarChar(8)) As [PremiumLISAmount],
+		Cast(SUBSTRING(LI.Col001,79,8) As VarChar(8)) As [NetLEPAmountforDirectBilledMembers],
+		Cast(SUBSTRING(LI.Col001,87,8) As VarChar(8)) As [Net Amount Payable to Plan],
+		Cast(SUBSTRING(LI.Col001,95,71) As VarChar(71)) As [Filler02],
+		@today As DateImported,
+		@filename As [FileName]
+From	[dbo].[tbl_LISLEPD_In] As LI
+Left	Outer Join [dbo].[tbl_LISLEPD_Detail] As LD
+		On LD.RecordType=SUBSTRING(LI.Col001,1,3)
+		And LD.[MCOContractNumber]=SUBSTRING(LI.Col001,4,5) 
+		And LD.[PBPNumber]=SUBSTRING(LI.Col001,9,3) 
+		And LD.[PlanSegmentNumber]=SUBSTRING(LI.Col001,12,3) 
+		And LD.[HICNumber]=SUBSTRING(LI.Col001,15,12) 
+		And LD.[FileName]=@filename
+Where	SUBSTRING(LI.Col001,27,7) <> ' '
+And		SUBSTRING(LI.Col001,1,2) in ('PD','AD')
+And		LD.HICNumber Is Null
+
+End
